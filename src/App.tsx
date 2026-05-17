@@ -17,25 +17,39 @@ import {
   MessageSquare,
   ChevronRight,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  PieChart,
+  Settings,
+  ShoppingBag,
+  ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils.ts';
-import { MOCK_CUSTOMERS, MOCK_SUGGESTIONS } from './constants.ts';
-import { Customer, ServiceSuggestion } from './types.ts';
+import { MOCK_CUSTOMERS, MOCK_VISITS, SERVICE_MENU } from './constants.ts';
+import { Customer, ServiceSuggestion, Visit } from './types.ts';
 
-type View = 'dashboard' | 'intake' | 'reactivation' | 'status';
+type View = 'dashboard' | 'analytics' | 'intake' | 'reactivation' | 'status' | 'services' | 'pitch';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
-  const [suggestions, setSuggestions] = useState<ServiceSuggestion[]>(MOCK_SUGGESTIONS);
+  const [visits, setVisits] = useState<Visit[]>(MOCK_VISITS);
+
+  const allSuggestions = useMemo(() => {
+    return visits.flatMap(v => v.suggestions);
+  }, [visits]);
 
   const missedRevenue = useMemo(() => {
-    return suggestions
+    return allSuggestions
       .filter(s => s.status === 'declined')
       .reduce((acc, curr) => acc + curr.price, 0);
-  }, [suggestions]);
+  }, [allSuggestions]);
+
+  const oilOnlyRate = useMemo(() => {
+    const total = visits.length;
+    const oilOnly = visits.filter(v => v.isOilOnly).length;
+    return total > 0 ? (oilOnly / total) * 100 : 0;
+  }, [visits]);
 
   const SidebarItem = ({ id, icon: Icon, label }: { id: View, icon: any, label: string }) => (
     <button
@@ -56,23 +70,32 @@ export default function App() {
     <div className="flex h-screen bg-[#F8F9FA] text-[#1A1A1A] font-sans">
       {/* Sidebar */}
       <aside className="w-64 border-r border-gray-200 bg-white p-6 flex flex-col">
-        <div className="flex items-center gap-2 mb-10 px-2">
+        <div className="flex items-center gap-2 mb-10 px-2 cursor-pointer" onClick={() => setCurrentView('dashboard')}>
           <div className="bg-orange-500 p-2 rounded-lg text-white">
             <TrendingUp size={20} />
           </div>
           <h1 className="font-bold text-lg tracking-tight">FranchiseGrow</h1>
         </div>
 
-        <nav className="flex-1">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Main Menu</div>
+        <nav className="flex-1 overflow-y-auto">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Operations</div>
           <SidebarItem id="dashboard" icon={LayoutDashboard} label="Dashboard" />
           <SidebarItem id="intake" icon={UserPlus} label="Digital Intake" />
-          <SidebarItem id="reactivation" icon={MessageSquare} label="Reactivation" />
           <SidebarItem id="status" icon={Clock} label="Wait Explorer" />
+          
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 mb-4 px-2">Growth & Strategy</div>
+          <SidebarItem id="analytics" icon={BarChart3} label="Manager Reports" />
+          <SidebarItem id="reactivation" icon={MessageSquare} label="Reactivation" />
+          <SidebarItem id="services" icon={ShoppingBag} label="Service Menu" />
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 mb-4 px-2">Manager Pitch</div>
+          <SidebarItem id="pitch" icon={ArrowRight} label="Pitch Presentation" />
         </nav>
 
-        <div className="pt-6 border-t border-gray-100 italic text-[11px] text-gray-400 text-center">
-          Jiffy Lube #412 Dashboard
+        <div className="pt-6 border-t border-gray-100 mt-auto">
+          <div className="bg-gray-50 p-4 rounded-xl">
+             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Pitch Tooling</div>
+             <p className="text-[11px] text-gray-500 leading-tight">Showing 30-day simulated data for Jiffy Lube #412</p>
+          </div>
         </div>
       </aside>
 
@@ -87,16 +110,25 @@ export default function App() {
             transition={{ duration: 0.2 }}
           >
             {currentView === 'dashboard' && (
-              <Dashboard missedRevenue={missedRevenue} suggestions={suggestions} customers={customers} />
+              <Dashboard missedRevenue={missedRevenue} suggestions={allSuggestions} oilOnlyRate={oilOnlyRate} />
+            )}
+            {currentView === 'analytics' && (
+              <AnalyticsView visits={visits} oilOnlyRate={oilOnlyRate} missedRevenue={missedRevenue} />
             )}
             {currentView === 'intake' && (
               <IntakeView onAdd={(c) => setCustomers([...customers, c])} />
             )}
             {currentView === 'reactivation' && (
-              <ReactivationView suggestions={suggestions} customers={customers} />
+              <ReactivationView suggestions={allSuggestions} customers={customers} />
             )}
             {currentView === 'status' && (
               <StatusView />
+            )}
+            {currentView === 'services' && (
+              <ServicesView menu={SERVICE_MENU} />
+            )}
+            {currentView === 'pitch' && (
+              <PitchView />
             )}
           </motion.div>
         </AnimatePresence>
@@ -105,81 +137,75 @@ export default function App() {
   );
 }
 
-function Dashboard({ missedRevenue, suggestions, customers }: { missedRevenue: number, suggestions: ServiceSuggestion[], customers: Customer[] }) {
+function Dashboard({ missedRevenue, suggestions, oilOnlyRate }: { missedRevenue: number, suggestions: ServiceSuggestion[], oilOnlyRate: number }) {
   return (
     <div className="space-y-8">
       <header className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Daily Performance</h2>
-          <p className="text-gray-500 mt-1">Real-time overview of missed opportunities and sales.</p>
+          <h2 className="text-3xl font-bold tracking-tight">Executive Summary</h2>
+          <p className="text-gray-500 mt-1">Key metrics requested for the Assistant Manager pitch.</p>
         </div>
         <div className="text-right">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">System Status</div>
-          <div className="flex items-center gap-2 text-green-600 font-medium">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Live Sync Active
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Store Health</div>
+          <div className="flex items-center gap-2 text-orange-600 font-medium">
+            <AlertCircle size={14} />
+            High Revenue Leakage
           </div>
         </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard 
-          title="Total Missed Revenue" 
+          title="Potential Monthly Lift" 
           value={`$${missedRevenue.toLocaleString()}`} 
-          sub="Declined Upsells (30 Days)" 
+          sub="Uncollected High-Margin Upsells" 
           color="orange"
-          icon={AlertCircle}
+          icon={TrendingUp}
         />
         <StatCard 
-          title="Customer Base" 
-          value={customers.length.toString()} 
-          sub="Active Profiles" 
+          title="Oil-Change-Only Rate" 
+          value={`${Math.round(oilOnlyRate)}%`} 
+          sub="Customers skipping upsells" 
           color="blue"
-          icon={Users}
+          icon={ShoppingBag}
         />
         <StatCard 
-          title="Follow-up Rate" 
-          value="12%" 
-          sub="+3% from last week" 
-          color="green"
-          icon={Send}
+          title="Digital Lead Capture" 
+          value="0%" 
+          sub="Current Paper Baseline" 
+          color="gray"
+          icon={Users}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
-            <ClipboardList size={20} className="text-orange-500" />
-            Recent Missed Upsells
-          </h3>
-          <div className="space-y-4">
-            {suggestions.filter(s => s.status === 'declined').slice(0, 4).map(s => (
-              <div key={s.id} className="flex justify-between items-center p-4 rounded-xl bg-gray-50 border border-transparent hover:border-gray-200 transition-colors">
-                <div>
-                  <div className="font-medium">{s.serviceName}</div>
-                  <div className="text-xs text-gray-500">Suggested to customer ID: {s.customerId}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold">${s.price}</div>
-                  <button className="text-[10px] text-orange-600 font-bold uppercase tracking-wider hover:underline">Track Follow-up</button>
-                </div>
-              </div>
-            ))}
+      <div className="bg-orange-50 border border-orange-100 p-8 rounded-[2rem] flex flex-col md:flex-row gap-8 items-center">
+        <div className="flex-1 space-y-4">
+          <div className="inline-block px-3 py-1 bg-orange-200 text-orange-700 text-[10px] font-black uppercase tracking-widest rounded-full">Problem Analysis</div>
+          <h3 className="text-2xl font-bold">The "Missed Data" Problem</h3>
+          <p className="text-orange-800/80 leading-relaxed">
+            Every customer that walks in and declines a <strong>Fuel Injection Service ($129)</strong> or <strong>Radiator Flush ($190)</strong> is a lost lead. Without their phone or email, you cannot reactivate them later when they are ready.
+          </p>
+          <div className="flex gap-4">
+            <div className="bg-white/50 p-4 rounded-xl border border-orange-200">
+              <div className="text-orange-600 font-black text-xl">100%</div>
+              <div className="text-[10px] font-bold uppercase text-orange-800/60">Paper Waste</div>
+            </div>
+            <div className="bg-white/50 p-4 rounded-xl border border-orange-200">
+              <div className="text-orange-600 font-black text-xl">$0</div>
+              <div className="text-[10px] font-bold uppercase text-orange-800/60">Follow-up Rev</div>
+            </div>
           </div>
         </div>
-
-        <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center items-center text-center space-y-4">
-          <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-400">
-            <TrendingUp size={32} />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg">Sales Opportunity Analysis</h3>
-            <p className="text-gray-500 max-w-xs mx-auto mt-2">
-              By collecting just 50% more emails at checkout, you could unlock <strong>$12k/mo</strong> in automated reactivation revenue.
-            </p>
-            <button className="mt-6 px-6 py-3 bg-black text-white rounded-xl font-medium text-sm hover:translate-y-[-2px] transition-transform">
-              View Strategy Report
-            </button>
+        <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-xl shadow-orange-900/5 space-y-4">
+          <div className="text-sm font-bold">Solution: Digital Reactivation</div>
+          <div className="space-y-3">
+             <div className="h-2 bg-gray-100 rounded-full w-full" />
+             <div className="h-2 bg-gray-100 rounded-full w-3/4" />
+             <div className="h-2 bg-gray-100 rounded-full w-5/6" />
+             <div className="pt-2 flex justify-between">
+                <div className="text-[10px] text-gray-400">Database Growth</div>
+                <div className="text-[10px] text-green-600 font-bold">+25% / mo</div>
+             </div>
           </div>
         </div>
       </div>
@@ -191,7 +217,8 @@ function StatCard({ title, value, sub, color, icon: Icon }: { title: string, val
   const colors = {
     orange: "bg-orange-50 border-orange-100 text-orange-600",
     blue: "bg-blue-50 border-blue-100 text-blue-600",
-    green: "bg-green-50 border-green-100 text-green-600"
+    green: "bg-green-50 border-green-100 text-green-600",
+    gray: "bg-gray-50 border-gray-100 text-gray-600"
   };
 
   return (
@@ -206,14 +233,307 @@ function StatCard({ title, value, sub, color, icon: Icon }: { title: string, val
   );
 }
 
+function AnalyticsView({ visits, oilOnlyRate, missedRevenue }: { visits: Visit[], oilOnlyRate: number, missedRevenue: number }) {
+  return (
+    <div className="space-y-10">
+      <header>
+        <h2 className="text-3xl font-bold tracking-tight">Manager's Performance Report</h2>
+        <p className="text-gray-500 mt-1">Breakdown of visitor traffic and conversion health for this franchise location.</p>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+          <h3 className="font-bold flex items-center gap-2">
+            <PieChart size={18} className="text-blue-500" />
+            Service Mix Analysis
+          </h3>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-1 h-12 bg-gray-50 rounded-lg overflow-hidden flex">
+                <div className="bg-orange-500 h-full" style={{ width: `${oilOnlyRate}%` }} />
+                <div className="bg-blue-500 h-full flex-1" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-orange-50 rounded-xl">
+                <div className="text-xs font-bold text-orange-800/60 uppercase tracking-widest mb-1">Oil Only</div>
+                <div className="text-xl font-bold text-orange-600">{Math.round(oilOnlyRate)}%</div>
+              </div>
+              <div className="p-4 bg-blue-50 rounded-xl">
+                <div className="text-xs font-bold text-blue-800/60 uppercase tracking-widest mb-1">Full Service</div>
+                <div className="text-xl font-bold text-blue-600">{Math.round(100 - oilOnlyRate)}%</div>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 italic">
+            Managers goal: Reduce "Oil Only" rate by 5% through digital education screens.
+          </p>
+        </div>
+
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+           <h3 className="font-bold flex items-center gap-2">
+            <Users size={18} className="text-purple-500" />
+            Traffic Estimates
+          </h3>
+          <div className="grid grid-cols-3 gap-4">
+            <TrafficStat label="Avg Daily" value="32" unit="cars" />
+            <TrafficStat label="Avg Weekly" value="214" unit="cars" />
+            <TrafficStat label="Avg Monthly" value="890" unit="cars" />
+          </div>
+          <div className="p-6 bg-purple-50 rounded-2xl border border-purple-100">
+             <div className="font-bold text-purple-900 text-sm mb-1 uppercase tracking-tight">The "Nextdoor" Opportunity</div>
+             <p className="text-xs text-purple-800/70">
+               Neighbors on Nextdoor are actively searching for "fast oil change." Ranking #1 digitally could increase visitor traffic by <strong>15%</strong>.
+             </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-black text-white p-10 rounded-[3rem] overflow-hidden relative">
+        <div className="max-w-xl">
+          <h3 className="text-4xl font-black mb-4">Total Opportunity: ${missedRevenue.toLocaleString()}</h3>
+          <p className="text-gray-400 text-lg mb-8">
+            This is the revenue currently walking out the door due to a lack of contact information for reactivation.
+          </p>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="border-l-4 border-orange-500 pl-4">
+               <div className="text-xs font-bold uppercase text-gray-500">Filters</div>
+               <div className="text-2xl font-bold font-mono">$110.00 avg</div>
+            </div>
+            <div className="border-l-4 border-blue-500 pl-4">
+               <div className="text-xs font-bold uppercase text-gray-500">Flush/Inject</div>
+               <div className="text-2xl font-bold font-mono">$159.00 avg</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrafficStat({ label, value, unit }: { label: string, value: string, unit: string }) {
+  return (
+    <div className="text-center p-4">
+      <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{label}</div>
+      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-[10px] font-medium text-gray-500">{unit}</div>
+    </div>
+  );
+}
+
+function ServicesView({ menu }: { menu: any[] }) {
+  return (
+    <div className="space-y-8">
+      <header>
+        <h2 className="text-3xl font-bold tracking-tight">Active Service Catalog</h2>
+        <p className="text-gray-500 mt-1">Recommended service list and targeted profit margins.</p>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {menu.map((item, idx) => (
+          <div key={idx} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex justify-between items-start mb-4">
+              <div className={cn(
+                "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest",
+                item.margin === 'High' ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+              )}>
+                {item.margin} Margin
+              </div>
+              <ShoppingBag size={14} className="text-gray-300 group-hover:text-black transition-colors" />
+            </div>
+            <h4 className="font-bold text-lg mb-1">{item.name}</h4>
+            <div className="text-2xl font-mono font-black text-gray-900">${item.basePrice}</div>
+            <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center text-xs">
+              <span className="text-gray-400 italic">Commonly declined</span>
+              <button className="text-orange-500 font-bold hover:underline py-1">Strategy Tips</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-gray-900 text-white p-8 rounded-3xl mt-12">
+        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+          <Settings size={20} className="text-orange-500" />
+          Manager Strategy: The "Bundle" Play
+        </h3>
+        <p className="text-gray-400 mb-8 max-w-2xl">
+          Pitch the manager on an "All-Digital Bundle." When a customer does the digital sign-in, they automatically get 10% off a high-margin filter. This "buys" the store their contact information for life.
+        </p>
+        <div className="flex gap-4">
+           <button className="px-6 py-3 bg-white text-black rounded-xl font-bold text-sm">View ROI Calculator</button>
+           <button className="px-6 py-3 border border-gray-700 rounded-xl font-bold text-sm">Download Paper vs Digital PPT</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PitchView() {
+  return (
+    <div className="max-w-5xl mx-auto space-y-16 py-10 pb-32">
+      <header className="text-center space-y-4">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-xs font-bold uppercase tracking-widest">
+          Consulting Strategy Case
+        </div>
+        <h2 className="text-5xl font-black tracking-tighter">Strategic Store Growth</h2>
+        <p className="text-xl text-gray-500 max-w-2xl mx-auto italic">
+          "The invisible leak: Why this Jiffy Lube location is losing $8k+ monthly in high-margin service revenue."
+        </p>
+      </header>
+
+      {/* Slide 1: The Local Audit */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="space-y-6">
+          <h3 className="text-3xl font-bold flex items-center gap-3">
+            <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><AlertCircle size={24} /></div>
+            The Digital Presence Audit
+          </h3>
+          <div className="space-y-4">
+            <AuditItem 
+              title="Google Business Profile (GBP)" 
+              status="Needs Attention" 
+              desc="Current search ranking for 'Oil Change' is Top 5, but lack of digital appointment links is driving traffic to competitors with online booking." 
+            />
+            <AuditItem 
+              title="Nextdoor Neighborhood Sentiment" 
+              status="High Opportunity" 
+              desc="Local search volume on Nextdoor is up 18%. Neighbors prioritize 'fast' and 'friendly'—Jiffy Lube's 30-min service is a major competitive advantage if advertised." 
+            />
+            <AuditItem 
+              title="Identity Capture" 
+              status="Critical Failure" 
+              desc="0% of customers currently receive digital follow-ups. Invoices are paper-based, losing the chance for 'service reactivation' campaigns." 
+            />
+          </div>
+        </div>
+        <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 bg-red-50 text-red-600 font-black text-[10px] rounded-bl-2xl">REVENUE LEAK DETECTED</div>
+          <div className="space-y-6">
+            <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">Neighbor Feedback (Simulated)</div>
+            <div className="p-4 bg-gray-50 rounded-2xl italic text-gray-600 text-sm border-l-4 border-gray-200">
+              "Great service at Jiffy Lube on Sunday, but I wish they had sent me a reminder about my air filter. I went to Pep Boys for it later because I forgot the price."
+            </div>
+            <div className="p-4 bg-gray-50 rounded-2xl italic text-gray-600 text-sm border-l-4 border-gray-200">
+              "Staff were friendly, but I had to wait for a paper slip. Why isn't this digital in 2026?"
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Slide 2: The Math of Missed Upsells */}
+      <section className="bg-gray-900 text-white p-12 rounded-[3.5rem] space-y-10">
+        <div className="text-center space-y-2">
+          <h3 className="text-3xl font-bold">The Math of Missing Data</h3>
+          <p className="text-gray-400">Based on your visit: 100% friendy, 100% efficient, 0% lead capture.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="text-center p-6 border border-gray-800 rounded-3xl bg-gray-800/20">
+             <div className="text-4xl font-black text-orange-500 mb-2">900</div>
+             <div className="text-sm font-bold uppercase tracking-widest text-gray-400">Monthly Visitors</div>
+          </div>
+          <div className="text-center p-6 border border-gray-800 rounded-3xl bg-gray-800/20">
+             <div className="text-4xl font-black text-orange-500 mb-2">350</div>
+             <div className="text-sm font-bold uppercase tracking-widest text-gray-400">Declined Upsells</div>
+          </div>
+          <div className="text-center p-6 border border-gray-800 rounded-3xl bg-gray-800/20">
+             <div className="text-4xl font-black text-orange-500 mb-2">$8,500</div>
+             <div className="text-sm font-bold uppercase tracking-widest text-gray-400">Uncollected Revenue</div>
+          </div>
+        </div>
+
+        <div className="p-8 bg-black/40 rounded-3xl border border-gray-800">
+           <h4 className="font-bold text-orange-400 mb-4 flex items-center gap-2">
+             <TrendingUp size={18} />
+             Reactivation Strategy
+           </h4>
+           <p className="text-gray-300 leading-relaxed italic">
+             "If we capture just **40%** of those emails during intake, and reactivate **5%** through automated SMS, we add an extra **$1,400/month** of pure profit without spending a dime on new ads."
+           </p>
+        </div>
+      </section>
+
+      {/* Slide 3: The Pitch / Solution */}
+      <section className="space-y-8">
+        <h3 className="text-3xl font-bold text-center">The Next Steps for the ASM</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <PitchCard 
+             step="01"
+             title="Deploy Digital Intake"
+             desc="Remove the paper sign. Use a tablet/QR code for check-in. Capture name, phone, and agreement for digital receipts."
+          />
+          <PitchCard 
+             step="02"
+             title="Automated Follow-ups"
+             desc="24 hours after service, a 'Thank You' text. 3 weeks after, a 'Ready for that Air Filter?' reminder with a 10% coupon."
+          />
+          <PitchCard 
+             step="03"
+             title="GBP & Nextdoor Integration"
+             desc="Update Google profile with 'Digital Fast Pass' link. Post weekly 'Bay Status' updates on Nextdoor to capture intent."
+          />
+          <PitchCard 
+             step="04"
+             title="Sales Training"
+             desc="Enable the staff to say: 'I'll email you the quote for the Radiator Flush so you have it for later—no pressure today.'"
+          />
+        </div>
+      </section>
+
+      <footer className="pt-20 text-center">
+        <p className="text-gray-400 text-sm font-medium uppercase tracking-widest mb-6 italic">Ready to present this to Jiffy Lube #412 Management?</p>
+        <button 
+          onClick={() => window.print()}
+          className="px-10 py-5 bg-orange-600 text-white rounded-2xl font-black text-xl hover:scale-105 transition-transform shadow-2xl shadow-orange-900/20"
+        >
+          Generate PDF Proposal
+        </button>
+      </footer>
+    </div>
+  );
+}
+
+function AuditItem({ title, status, desc }: { title: string, status: string, desc: string }) {
+  return (
+    <div className="p-6 bg-white rounded-2xl border border-gray-100 shadow-sm space-y-2">
+      <div className="flex justify-between items-center">
+        <div className="font-bold text-sm">{title}</div>
+        <div className={cn(
+          "text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded",
+          status === 'Needs Attention' ? "bg-orange-100 text-orange-600" : 
+          status === 'Critical Failure' ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
+        )}>{status}</div>
+      </div>
+      <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
+    </div>
+  );
+}
+
+function PitchCard({ step, title, desc }: { step: string, title: string, desc: string }) {
+  return (
+    <div className="p-8 bg-gray-50 rounded-3xl border border-gray-100 hover:bg-white hover:shadow-xl transition-all group">
+      <div className="text-4xl font-black text-gray-200 group-hover:text-orange-100 transition-colors mb-4">{step}</div>
+      <h4 className="text-xl font-bold mb-2">{title}</h4>
+      <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
+    </div>
+  );
+}
+
 function IntakeView({ onAdd }: { onAdd: (c: Customer) => void }) {
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    // Simulate adding
-    onAdd({ id: Math.random().toString(), name: 'New User', phone: '000-0000', email: '...', lastVisit: 'Today', vehicle: '...' });
+    onAdd({ 
+      id: Math.random().toString(), 
+      name: 'New User', 
+      phone: '000-0000', 
+      email: '...', 
+      lastVisit: 'Today', 
+      vehicle: '...',
+      totalSpent: 0
+    });
     setTimeout(() => setSubmitted(false), 3000);
   };
 
