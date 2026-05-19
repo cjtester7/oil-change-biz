@@ -84,11 +84,13 @@ const AuthContext = createContext<{
   loading: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  setPreview: () => void;
 }>({
   user: null,
   loading: true,
   login: async () => {},
   logout: async () => {},
+  setPreview: () => {},
 });
 
 const useAuth = () => useContext(AuthContext);
@@ -139,6 +141,15 @@ export default function App() {
     await signOut(auth);
   };
 
+  const setPreview = () => {
+    setUser({
+      uid: 'preview-guest',
+      displayName: 'Preview Guest',
+      email: 'guest@example.com',
+      isAnonymous: true
+    } as any);
+  };
+
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
@@ -148,14 +159,14 @@ export default function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, setPreview }}>
       <MainApp />
     </AuthContext.Provider>
   );
 }
 
 function MainApp() {
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, setPreview } = useAuth();
   const [currentView, setCurrentView] = useState<View>('dashboard');
 
   if (!user) {
@@ -168,13 +179,34 @@ function MainApp() {
         <p className="text-gray-500 max-w-sm mb-10 leading-relaxed">
           The ultimate BI & reactivation engine for franchise profitability.
         </p>
-        <button 
-          onClick={login}
-          className="flex items-center gap-3 px-8 py-4 bg-black text-white rounded-2xl font-bold hover:scale-105 transition-transform shadow-xl shadow-black/20"
-        >
-          <LogIn size={20} />
-          Sign in with Google
-        </button>
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          <button 
+            onClick={login}
+            className="flex items-center justify-center gap-3 w-full py-4 bg-black text-white rounded-2xl font-bold hover:scale-105 transition-transform shadow-xl shadow-black/20"
+          >
+            <LogIn size={20} />
+            Sign in with Google
+          </button>
+          
+          <div className="relative py-2">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-200"></span></div>
+            <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest"><span className="bg-gray-50 px-2 text-gray-400">or use for PoC</span></div>
+          </div>
+
+          <button 
+            onClick={setPreview}
+            className="flex items-center justify-center gap-3 w-full py-4 bg-orange-500/10 text-orange-600 border border-orange-200 rounded-2xl font-bold hover:bg-orange-500/20 transition-colors"
+          >
+            <User size={20} />
+            Continue as Guest (No Login)
+          </button>
+          
+          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 mt-4">
+            <p className="text-[10px] text-blue-600 font-medium leading-relaxed">
+              <strong>Tip:</strong> If Google login fails, your browser may be blocking pop-ups. Guest mode is fully functional for PoC testing and requires no setup.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -306,7 +338,7 @@ function Dashboard({ missedRevenue, suggestions, oilOnlyRate }: { missedRevenue:
   const [customerCount, setCustomerCount] = useState(0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || user.uid === 'preview-guest') return;
     const q = query(collection(db, 'customers'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setCustomerCount(snapshot.size);
@@ -1074,12 +1106,18 @@ function IntakeView({ onAdd }: { onAdd: (c: Customer) => void }) {
     if (!user) return;
     setSaving(true);
     try {
-      const newDoc = {
-        ...formData,
-        uid: user.uid,
-        createdAt: serverTimestamp()
-      };
-      await addDoc(collection(db, 'customers'), newDoc);
+      if (user.uid !== 'preview-guest') {
+        const newDoc = {
+          ...formData,
+          uid: user.uid,
+          createdAt: serverTimestamp()
+        };
+        await addDoc(collection(db, 'customers'), newDoc);
+      } else {
+        // Mock delay for guest mode
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
+
       setSubmitted(true);
       
       onAdd({
