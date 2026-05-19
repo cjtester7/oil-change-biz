@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "customers": {
+      "title": "Customer",
+      "description": "Customer contact info and identity capture",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique ID from auth" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "vehicle": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "createdAt"]
+    },
+    "visits": {
+      "title": "Service Visit",
+      "description": "Details of a specific service event",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "serviceType": { "type": "string" },
+        "amount": { "type": "number" },
+        "declinedItems": { "type": "array", "description": "High-margin items currently ignored" },
+        "status": { "type": "string", "enum": ["pending", "completed", "reactivation-sent"] }
+      },
+      "required": ["customerId", "date", "serviceType", "status"]
+    },
+    "settings": {
+      "title": "Store Settings",
+      "description": "Franchise-level configuration",
+      "type": "object",
+      "properties": {
+        "storeId": { "type": "string" },
+        "nextdoorId": { "type": "string" },
+        "gbpId": { "type": "string" },
+        "isDigitalIntakeActive": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "/customers/{customerId}": {
+      "schema": "customers",
+      "description": "Public profile and contact info"
+    },
+    "/customers/{customerId}/visits/{visitId}": {
+      "schema": "visits",
+      "description": "Visit history for reactivation targeting"
+    },
+    "/stores/{storeId}/config": {
+      "schema": "settings",
+      "description": "Franchise settings"
+    }
+  }
+}

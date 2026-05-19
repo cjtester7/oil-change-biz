@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ---------------------------------------------------------
+    // Phase 0: Global DENY-ALL
+    // ---------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------
+    // Phase 3: Global Helpers
+    // ---------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ---------------------------------------------------------
+    // Entity Validations
+    // ---------------------------------------------------------
+    
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['name', 'email', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.createdAt == request.time &&
+             (data.get('phone', '') is string && data.get('phone', '').size() <= 20) &&
+             (data.get('vehicle', '') is string && data.get('vehicle', '').size() <= 128);
+    }
+
+    function isValidVisit(data) {
+      return data.keys().hasAll(['customerId', 'date', 'serviceType', 'status']) &&
+             data.customerId is string &&
+             data.date is string && // Simplified format check, usually ISO string
+             data.serviceType is string &&
+             data.status in ['pending', 'completed', 'reactivation-sent'] &&
+             (data.get('amount', 0) is number && data.get('amount', 0) >= 0) &&
+             (data.get('declinedItems', []) is list && data.get('declinedItems', []).size() <= 20);
+    }
+
+    // ---------------------------------------------------------
+    // Collection Matches
+    // ---------------------------------------------------------
+
+    // /customers/{customerId}
+    match /customers/{customerId} {
+      allow get: if isOwner(customerId);
+      allow create: if isOwner(customerId) && isValidCustomer(incoming());
+      allow update: if isOwner(customerId) && 
+                      isValidCustomer(incoming()) &&
+                      incoming().createdAt == existing().createdAt && // Immutable
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phone', 'vehicle']);
+    }
+
+    // Subcollection: /customers/{customerId}/visits/{visitId}
+    match /customers/{customerId}/visits/{visitId} {
+      allow list: if isOwner(customerId);
+      allow get: if isOwner(customerId);
+      allow create: if isOwner(customerId) && isValidVisit(incoming()) && incoming().customerId == customerId;
+      allow update: if isOwner(customerId) && 
+                      isValidVisit(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'amount', 'declinedItems']);
+    }
+
+    // /stores/{storeId}/config
+    match /stores/{storeId}/config {
+      allow read: if isSignedIn(); // Any signed in user can see store config? Or limit to specific storeId?
+      // Only admins or system should update this. For now, denying client writes.
+      allow write: if false; 
+    }
+  }
+}

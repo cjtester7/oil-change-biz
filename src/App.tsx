@@ -2,13 +2,13 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Version: v4
- * Changes: Added 'Digital Dominance' (SEO Strategy) view to provide a roadmap 
- * for ranking #1 in local search. Includes specific tactics for GBP, Nextdoor, 
- * and keyword optimization.
+ * Version: v7
+ * Changes: Fully enabled real-time features. Dashboard now listens for 
+ * live Firestore updates. Wait Explorer (StatusView) polls the Express API 
+ * every 5s for bay status. Digital Intake now persists directly to Firestore.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, createContext, useContext } from 'react';
 import { 
   BarChart3, 
   Users, 
@@ -33,17 +33,101 @@ import {
   Globe,
   Star,
   Camera,
-  Search
+  Search,
+  Filter,
+  LogIn,
+  LogOut,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils.ts';
 import { MOCK_CUSTOMERS, MOCK_VISITS, SERVICE_MENU } from './constants.ts';
 import { Customer, ServiceSuggestion, Visit } from './types.ts';
+import { auth, db } from './lib/firebase.ts';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser } from 'firebase/auth';
+import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+
+// --- Auth Context ---
+const AuthContext = createContext<{
+  user: FirebaseUser | null;
+  loading: boolean;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
+}>({
+  user: null,
+  loading: true,
+  login: async () => {},
+  logout: async () => {},
+});
+
+const useAuth = () => useContext(AuthContext);
 
 type View = 'dashboard' | 'analytics' | 'intake' | 'reactivation' | 'status' | 'services' | 'pitch' | 'roi' | 'seo';
 
 export default function App() {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const login = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500" />
+      </div>
+    );
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+      <MainApp />
+    </AuthContext.Provider>
+  );
+}
+
+function MainApp() {
+  const { user, login, logout } = useAuth();
   const [currentView, setCurrentView] = useState<View>('dashboard');
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-20 h-20 bg-orange-500 rounded-[2rem] flex items-center justify-center text-white mb-8 shadow-2xl shadow-orange-500/20">
+          <TrendingUp size={40} />
+        </div>
+        <h1 className="text-4xl font-black tracking-tighter mb-4 text-gray-900 leading-tight">Jiffy Lube<br/>FranchiseGrow</h1>
+        <p className="text-gray-500 max-w-sm mb-10 leading-relaxed">
+          The ultimate BI & reactivation engine for franchise profitability.
+        </p>
+        <button 
+          onClick={login}
+          className="flex items-center gap-3 px-8 py-4 bg-black text-white rounded-2xl font-bold hover:scale-105 transition-transform shadow-xl shadow-black/20"
+        >
+          <LogIn size={20} />
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [visits, setVisits] = useState<Visit[]>(MOCK_VISITS);
 
@@ -106,9 +190,19 @@ export default function App() {
         </nav>
 
         <div className="pt-6 border-t border-gray-100 mt-auto">
-          <div className="bg-gray-50 p-4 rounded-xl">
-             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Pitch Tooling</div>
-             <p className="text-[11px] text-gray-500 leading-tight">Showing 30-day simulated data for Jiffy Lube #412</p>
+          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+             <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
+               <User size={16} />
+             </div>
+             <div className="flex-1 min-w-0">
+               <div className="text-xs font-bold truncate text-gray-900">{user.displayName || user.email}</div>
+               <button 
+                onClick={logout}
+                className="text-[10px] text-gray-400 hover:text-orange-600 font-bold flex items-center gap-1"
+               >
+                 Sign Out <LogOut size={8} />
+               </button>
+             </div>
           </div>
         </div>
       </aside>
@@ -158,6 +252,19 @@ export default function App() {
 }
 
 function Dashboard({ missedRevenue, suggestions, oilOnlyRate }: { missedRevenue: number, suggestions: ServiceSuggestion[], oilOnlyRate: number }) {
+  const { user } = useAuth();
+  const [customerCount, setCustomerCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'customers'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setCustomerCount(snapshot.size);
+    }, (error) => {
+      console.error("Dashboard error:", error);
+    });
+    return () => unsubscribe();
+  }, [user]);
   return (
     <div className="space-y-8">
       <header className="flex justify-between items-end">
@@ -546,6 +653,10 @@ function SEOView() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Digital Dominance Roadmap</h2>
           <p className="text-gray-500 mt-1">Strategy to rank #1 local search for "Fast Oil Change".</p>
+          <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest rounded border border-gray-200">
+            <AlertCircle size={10} />
+            Simulated Pitch Data
+          </div>
         </div>
         <div className="bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-2">
           <Globe size={14} />
@@ -823,21 +934,48 @@ function PitchCard({ step, title, desc }: { step: string, title: string, desc: s
 }
 
 function IntakeView({ onAdd }: { onAdd: (c: Customer) => void }) {
+  const { user } = useAuth();
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    vehicle: ''
+  });
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    onAdd({ 
-      id: Math.random().toString(), 
-      name: 'New User', 
-      phone: '000-0000', 
-      email: '...', 
-      lastVisit: 'Today', 
-      vehicle: '...',
-      totalSpent: 0
-    });
-    setTimeout(() => setSubmitted(false), 3000);
+    if (!user) return;
+    setSaving(true);
+    try {
+      const newDoc = {
+        ...formData,
+        uid: user.uid,
+        createdAt: serverTimestamp()
+      };
+      await addDoc(collection(db, 'customers'), newDoc);
+      setSubmitted(true);
+      
+      onAdd({
+        id: Math.random().toString(),
+        ...formData,
+        status: 'active',
+        lastVisit: 'Just now',
+        totalSpent: 0,
+        visitCount: 1
+      } as any);
+
+      setTimeout(() => {
+        setSubmitted(false);
+        setFormData({ name: '', email: '', phone: '', vehicle: '' });
+      }, 3000);
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("Error saving record to Firestore.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -868,11 +1006,35 @@ function IntakeView({ onAdd }: { onAdd: (c: Customer) => void }) {
         ) : (
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputGroup label="Full Name" placeholder="e.g. Michael Scott" />
-              <InputGroup label="Phone Number" placeholder="e.g. 555-0123" />
+              <InputGroup 
+                label="Full Name" 
+                placeholder="e.g. Michael Scott" 
+                value={formData.name} 
+                onChange={(e) => setFormData({...formData, name: e.target.value})} 
+                required 
+              />
+              <InputGroup 
+                label="Phone Number" 
+                placeholder="e.g. 555-0123" 
+                value={formData.phone} 
+                onChange={(e) => setFormData({...formData, phone: e.target.value})} 
+                required 
+              />
             </div>
-            <InputGroup label="Email Address" placeholder="e.g. michael@dundermifflin.com" />
-            <InputGroup label="Vehicle Tag / Model" placeholder="e.g. ABC-1234 (Silver SUV)" />
+            <InputGroup 
+              label="Email Address" 
+              placeholder="e.g. michael@dundermifflin.com" 
+              value={formData.email} 
+              onChange={(e) => setFormData({...formData, email: e.target.value})} 
+              required 
+            />
+            <InputGroup 
+              label="Vehicle Tag / Model" 
+              placeholder="e.g. ABC-1234 (Silver SUV)" 
+              value={formData.vehicle} 
+              onChange={(e) => setFormData({...formData, vehicle: e.target.value})} 
+              required 
+            />
             
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 flex items-start gap-4">
               <input type="checkbox" className="mt-1" defaultChecked />
@@ -882,7 +1044,12 @@ function IntakeView({ onAdd }: { onAdd: (c: Customer) => void }) {
               </div>
             </div>
 
-            <button type="submit" className="w-full bg-orange-500 text-white py-4 rounded-xl font-bold text-lg hover:bg-orange-600 transition-colors shadow-lg shadow-orange-200">
+            <button 
+              type="submit"
+              disabled={saving}
+              className="w-full bg-orange-500 text-white py-4 rounded-xl font-bold text-lg hover:bg-orange-600 transition-colors shadow-lg shadow-orange-200 flex items-center justify-center gap-3 disabled:opacity-50"
+            >
+              {saving ? <RefreshCw className="animate-spin" /> : <ChevronRight />}
               Complete Digital Intake
             </button>
           </form>
@@ -896,13 +1063,22 @@ function IntakeView({ onAdd }: { onAdd: (c: Customer) => void }) {
   );
 }
 
-function InputGroup({ label, placeholder }: { label: string, placeholder: string }) {
+function InputGroup({ label, placeholder, value, onChange, required }: { 
+  label: string, 
+  placeholder: string, 
+  value?: string, 
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void,
+  required?: boolean
+}) {
   return (
     <div className="space-y-2">
       <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400 ml-1">{label}</label>
       <input 
         type="text" 
         placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        required={required}
         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all placeholder:text-gray-300"
       />
     </div>
@@ -1002,6 +1178,26 @@ function ReactivationView({ suggestions, customers }: { suggestions: ServiceSugg
 }
 
 function StatusView() {
+  const [bays, setBays] = useState<any[]>([]);
+  const [loadingBays, setLoadingBays] = useState(true);
+
+  useEffect(() => {
+    const fetchBays = async () => {
+      try {
+        const res = await fetch('/api/bays');
+        const data = await res.json();
+        setBays(data);
+      } catch (err) {
+        console.error("Failed to fetch bays:", err);
+      } finally {
+        setLoadingBays(false);
+      }
+    };
+    fetchBays();
+    const interval = setInterval(fetchBays, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="max-w-4xl mx-auto text-center space-y-12 py-10">
       <div>
@@ -1010,41 +1206,39 @@ function StatusView() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="p-10 bg-white rounded-3xl border border-gray-100 shadow-xl space-y-6 text-center">
-          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
-            <CheckCircle2 size={40} />
-          </div>
-          <div>
-            <div className="text-4xl font-black">0 min</div>
-            <div className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-1">Bay 1 (Express)</div>
-          </div>
-          <div className="bg-green-500 h-2 w-full rounded-full" />
-          <div className="text-xs font-medium text-green-600">Available for Walk-ins</div>
-        </div>
-
-        <div className="p-10 bg-white rounded-3xl border border-gray-100 shadow-xl space-y-6 text-center">
-          <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto">
-            <Clock size={40} />
-          </div>
-          <div>
-            <div className="text-4xl font-black">15 min</div>
-            <div className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-1">Bay 2 (Full Service)</div>
-          </div>
-          <div className="bg-orange-500 h-2 w-2/3 rounded-full" />
-          <div className="text-xs font-medium text-orange-600">Finishing up oil change</div>
-        </div>
-
-        <div className="p-10 bg-white rounded-3xl border border-gray-100 shadow-xl space-y-6 text-center">
-          <div className="w-20 h-20 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto">
-            <XCircle size={40} />
-          </div>
-          <div>
-            <div className="text-4xl font-black">Offline</div>
-            <div className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-1">Bay 3 (Diagnostics)</div>
-          </div>
-          <div className="bg-gray-200 h-2 w-full rounded-full" />
-          <div className="text-xs font-medium text-gray-400">Scheduled Maintenance</div>
-        </div>
+        {loadingBays ? (
+          <div className="col-span-3 text-gray-400 font-bold animate-pulse">Scanning shop floor...</div>
+        ) : (
+          bays.map((bay) => (
+            <div key={bay.id} className="p-10 bg-white rounded-3xl border border-gray-100 shadow-xl space-y-6 text-center">
+              <div className={cn(
+                "w-20 h-20 rounded-full flex items-center justify-center mx-auto",
+                bay.status === 'open' ? "bg-green-100 text-green-600" : 
+                bay.status === 'occupied' ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-400"
+              )}>
+                {bay.status === 'open' ? <CheckCircle2 size={40} /> : 
+                 bay.status === 'occupied' ? <Clock size={40} /> : <XCircle size={40} />}
+              </div>
+              <div>
+                <div className="text-4xl font-black">{bay.timer || (bay.status === 'open' ? '0 min' : 'Offline')}</div>
+                <div className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-1">{bay.name}</div>
+              </div>
+              <div className={cn(
+                "h-2 w-full rounded-full",
+                bay.status === 'open' ? "bg-green-500" : 
+                bay.status === 'occupied' ? "bg-orange-500" : "bg-gray-200"
+              )} />
+              <div className={cn(
+                "text-xs font-medium",
+                bay.status === 'open' ? "text-green-600" : 
+                bay.status === 'occupied' ? "text-orange-600" : "text-gray-400"
+              )}>
+                {bay.status === 'open' ? 'Available for Walk-ins' : 
+                 bay.status === 'occupied' ? 'Service in Progress' : 'Out of Service'}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="bg-black text-white p-12 rounded-[3rem] relative overflow-hidden text-left">
