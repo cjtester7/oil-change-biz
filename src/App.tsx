@@ -44,8 +44,39 @@ import { cn } from './lib/utils.ts';
 import { MOCK_CUSTOMERS, MOCK_VISITS, SERVICE_MENU } from './constants.ts';
 import { Customer, ServiceSuggestion, Visit } from './types.ts';
 import { auth, db } from './lib/firebase.ts';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User as FirebaseUser } from 'firebase/auth';
+import { 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
+  GoogleAuthProvider, 
+  signOut, 
+  User as FirebaseUser 
+} from 'firebase/auth';
 import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area 
+} from 'recharts';
+
+/**
+ * MOCK PERFORMANCE DATA for GBP PoC
+ */
+const GBP_MONTHLY_DATA = [
+  { month: 'Jan', searches: 2100, actions: 120, reviews: 2 },
+  { month: 'Feb', searches: 2400, actions: 155, reviews: 3 },
+  { month: 'Mar', searches: 3200, actions: 210, reviews: 5 },
+  { month: 'Apr', searches: 3800, actions: 290, reviews: 4 },
+  { month: 'May', searches: 4200, actions: 340, reviews: 8 },
+  { month: 'Jun', searches: 5100, actions: 420, reviews: 12 },
+];
 
 // --- Auth Context ---
 const AuthContext = createContext<{
@@ -73,15 +104,34 @@ export default function App() {
       setUser(u);
       setLoading(false);
     });
+
+    // Handle authentication result from redirect flow
+    getRedirectResult(auth).then((result) => {
+      if (result?.user) {
+        setUser(result.user);
+      }
+    }).catch((error) => {
+      console.error("Redirect auth error:", error);
+    });
+
     return () => unsubscribe();
   }, []);
 
   const login = async () => {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    
     try {
+      // Try popup first
       await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Login failed:", error);
+    } catch (error: any) {
+      console.warn("Popup blocked or closed, falling back to redirect:", error);
+      // Fallback to redirect if popup is blocked or fails
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
+        await signInWithRedirect(auth, provider);
+      } else {
+        alert("Authentication error. Please check if popups are enabled or try again.");
+      }
     }
   };
 
@@ -670,6 +720,81 @@ function SEOView() {
         <StrategyMetric label="Nextdoor Leads" value="12" target="50" trend="up" />
         <StrategyMetric label="Review Velocity" value="2/mo" target="10/mo" trend="down" />
       </div>
+
+      {/* GBP Performance Visualization (PoC) */}
+      <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-2xl font-bold">GBP Performance Feed</h3>
+            <p className="text-gray-500 text-sm">Real-time engagement trends from Google Search & Maps.</p>
+          </div>
+          <div className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-orange-100">
+            PoC Preview Mode
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          <div className="h-[300px] w-full">
+            <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-blue-500" />
+              Search Impressions (Visualized)
+            </div>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={GBP_MONTHLY_DATA}>
+                <defs>
+                  <linearGradient id="colorSearches" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                <XAxis 
+                  dataKey="month" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fontSize: 10, fill: '#9ca3af'}} 
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fontSize: 10, fill: '#9ca3af'}} 
+                />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+                <Area type="monotone" dataKey="searches" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorSearches)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="h-[300px] w-full">
+             <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-orange-500" />
+              Customer Actions (Calls/Directions)
+            </div>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={GBP_MONTHLY_DATA}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                <XAxis 
+                  dataKey="month" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fontSize: 10, fill: '#9ca3af'}} 
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fontSize: 10, fill: '#9ca3af'}} 
+                />
+                <Tooltip 
+                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+                <Line type="monotone" dataKey="actions" stroke="#f97316" strokeWidth={3} dot={{ r: 4, fill: '#f97316', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 8 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </section>
 
       <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm space-y-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
