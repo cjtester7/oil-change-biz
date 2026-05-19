@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Jiffy Lube Franchise Optimizer",
+  "description": "A business intelligence and growth platform for Jiffy Lube franchises to capture digital leads and reactivate declined services.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

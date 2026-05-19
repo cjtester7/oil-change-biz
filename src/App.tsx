@@ -3,6 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ * 
+ * Version: v3
+ * Changes: Added a comprehensive ROI Calculator view to model potential revenue 
+ * lift from digital intake and reactivation. Integrated navigation for the new ROI 
+ * view and updated the Service Menu call-to-action.
+ */
+
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart3, 
@@ -21,14 +31,17 @@ import {
   PieChart,
   Settings,
   ShoppingBag,
-  ArrowRight
+  ArrowRight,
+  Calculator,
+  RefreshCw,
+  DollarSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils.ts';
 import { MOCK_CUSTOMERS, MOCK_VISITS, SERVICE_MENU } from './constants.ts';
 import { Customer, ServiceSuggestion, Visit } from './types.ts';
 
-type View = 'dashboard' | 'analytics' | 'intake' | 'reactivation' | 'status' | 'services' | 'pitch';
+type View = 'dashboard' | 'analytics' | 'intake' | 'reactivation' | 'status' | 'services' | 'pitch' | 'roi';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -85,6 +98,7 @@ export default function App() {
           
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 mb-4 px-2">Growth & Strategy</div>
           <SidebarItem id="analytics" icon={BarChart3} label="Manager Reports" />
+          <SidebarItem id="roi" icon={Calculator} label="ROI Calculator" />
           <SidebarItem id="reactivation" icon={MessageSquare} label="Reactivation" />
           <SidebarItem id="services" icon={ShoppingBag} label="Service Menu" />
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 mb-4 px-2">Manager Pitch</div>
@@ -125,10 +139,13 @@ export default function App() {
               <StatusView />
             )}
             {currentView === 'services' && (
-              <ServicesView menu={SERVICE_MENU} />
+              <ServicesView menu={SERVICE_MENU} setView={setCurrentView} />
             )}
             {currentView === 'pitch' && (
               <PitchView />
+            )}
+            {currentView === 'roi' && (
+              <ROIView />
             )}
           </motion.div>
         </AnimatePresence>
@@ -321,7 +338,7 @@ function TrafficStat({ label, value, unit }: { label: string, value: string, uni
   );
 }
 
-function ServicesView({ menu }: { menu: any[] }) {
+function ServicesView({ menu, setView }: { menu: any[], setView: (v: View) => void }) {
   return (
     <div className="space-y-8">
       <header>
@@ -360,10 +377,161 @@ function ServicesView({ menu }: { menu: any[] }) {
           Pitch the manager on an "All-Digital Bundle." When a customer does the digital sign-in, they automatically get 10% off a high-margin filter. This "buys" the store their contact information for life.
         </p>
         <div className="flex gap-4">
-           <button className="px-6 py-3 bg-white text-black rounded-xl font-bold text-sm">View ROI Calculator</button>
-           <button className="px-6 py-3 border border-gray-700 rounded-xl font-bold text-sm">Download Paper vs Digital PPT</button>
+           <button 
+            onClick={() => setView('roi')}
+            className="px-6 py-3 bg-white text-black rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors"
+           >
+            View ROI Calculator
+           </button>
+           <button className="px-6 py-3 border border-gray-700 rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors">Download Paper vs Digital PPT</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ROIView() {
+  const [traffic, setTraffic] = useState(900);
+  const [captureRate, setCaptureRate] = useState(40);
+  const [reactivationRate, setReactivationRate] = useState(5);
+  const [avgTicket, setAvgTicket] = useState(120);
+
+  const stats = useMemo(() => {
+    const leadsByMo = (traffic * (captureRate / 100));
+    const monthlyLift = leadsByMo * (reactivationRate / 100) * avgTicket;
+    const yearlyLift = monthlyLift * 12;
+    return { leadsByMo, monthlyLift, yearlyLift };
+  }, [traffic, captureRate, reactivationRate, avgTicket]);
+
+  return (
+    <div className="space-y-10">
+      <header>
+        <h2 className="text-3xl font-bold tracking-tight">ROI Projection Engine</h2>
+        <p className="text-gray-500 mt-1">Model the financial impact of digital intake and automated reactivation.</p>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+            <h3 className="font-bold flex items-center gap-2 text-gray-900">
+              <Calculator size={18} className="text-orange-500" />
+              Variables
+            </h3>
+            
+            <SliderGroup 
+              label="Monthly Traffic (Cars)" 
+              value={traffic} 
+              onChange={setTraffic} 
+              min={100} 
+              max={2000} 
+              step={50}
+              icon={Users}
+            />
+            
+            <SliderGroup 
+              label="Email Capture Rate (%)" 
+              value={captureRate} 
+              onChange={setCaptureRate} 
+              min={0} 
+              max={100} 
+              step={5}
+              icon={UserPlus}
+            />
+
+            <SliderGroup 
+              label="Reactivation Success (%)" 
+              value={reactivationRate} 
+              onChange={setReactivationRate} 
+              min={1} 
+              max={20} 
+              step={1}
+              icon={RefreshCw}
+            />
+
+            <SliderGroup 
+              label="Avg Service Value ($)" 
+              value={avgTicket} 
+              onChange={setAvgTicket} 
+              min={40} 
+              max={300} 
+              step={10}
+              icon={DollarSign}
+            />
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-black text-white p-10 rounded-[2.5rem] flex flex-col justify-between h-64">
+               <div>
+                 <div className="text-orange-500 font-bold text-xs uppercase tracking-widest mb-2">Monthly Revenue Lift</div>
+                 <div className="text-5xl font-black tracking-tighter">${Math.round(stats.monthlyLift).toLocaleString()}</div>
+               </div>
+               <div className="text-gray-400 text-sm leading-tight">
+                 Pure profit from customers who would have otherwise never returned for declined services.
+               </div>
+            </div>
+            
+            <div className="bg-orange-500 text-white p-10 rounded-[2.5rem] flex flex-col justify-between h-64 shadow-xl shadow-orange-500/20">
+               <div>
+                 <div className="text-orange-100 font-bold text-xs uppercase tracking-widest mb-2">Yearly Potential</div>
+                 <div className="text-5xl font-black tracking-tighter">${Math.round(stats.yearlyLift).toLocaleString()}</div>
+               </div>
+               <div className="bg-white/20 p-4 rounded-2xl text-orange-50 text-sm">
+                  Equivalent to <strong>+{Math.round(stats.yearlyLift / 85)}</strong> oil changes per year.
+               </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-10 rounded-[2.5rem] border border-gray-100 shadow-sm">
+             <h3 className="font-bold text-xl mb-6">Database Growth Projection</h3>
+             <div className="space-y-6">
+                <div className="flex justify-between items-end">
+                   <div>
+                      <div className="text-4xl font-bold text-gray-900">{Math.round(stats.leadsByMo)}</div>
+                      <div className="text-xs text-gray-400 font-bold uppercase tracking-widest">New Leads / Month</div>
+                   </div>
+                   <div className="text-right">
+                      <div className="text-4xl font-bold text-gray-900">{Math.round(stats.leadsByMo * 12)}</div>
+                      <div className="text-xs text-gray-400 font-bold uppercase tracking-widest">Leads by Year 1</div>
+                   </div>
+                </div>
+                <div className="h-4 bg-gray-50 rounded-full overflow-hidden flex">
+                   <div className="bg-orange-500 w-1/4 h-full" />
+                   <div className="bg-orange-400 w-1/4 h-full border-l border-white/20" />
+                   <div className="bg-orange-300 w-1/4 h-full border-l border-white/20" />
+                   <div className="bg-orange-200 w-1/4 h-full border-l border-white/20" />
+                </div>
+                <p className="text-sm text-gray-500 italic">
+                  *Assumes consistent traffic volume. Real growth may be higher with local Nextdoor and GBP optimizations.
+                </p>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SliderGroup({ label, value, onChange, min, max, step, icon: Icon }: { label: string, value: number, onChange: (v: number) => void, min: number, max: number, step: number, icon: any }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center text-sm">
+        <label className="text-gray-500 font-medium flex items-center gap-2">
+          <Icon size={14} className="text-gray-400" />
+          {label}
+        </label>
+        <span className="font-black text-gray-900">{value}{label.includes('%') ? '%' : ''}</span>
+      </div>
+      <input 
+        type="range" 
+        min={min} 
+        max={max} 
+        step={step} 
+        value={value} 
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-orange-500"
+      />
     </div>
   );
 }
@@ -766,3 +934,4 @@ function StatusView() {
     </div>
   );
 }
+
