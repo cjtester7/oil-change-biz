@@ -2,10 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Version: v7
- * Changes: Fully enabled real-time features. Dashboard now listens for 
- * live Firestore updates. Wait Explorer (StatusView) polls the Express API 
- * every 5s for bay status. Digital Intake now persists directly to Firestore.
+ * Version: v8
+ * Changes: Added Pricing Estimator for franchise-wide PoC evaluation. 
+ * Updated navigation and added tier-based pricing insights for Jiffy Lube partners.
  */
 
 import React, { useState, useMemo, useEffect, createContext, useContext } from 'react';
@@ -95,7 +94,7 @@ const AuthContext = createContext<{
 
 const useAuth = () => useContext(AuthContext);
 
-type View = 'dashboard' | 'analytics' | 'intake' | 'reactivation' | 'status' | 'services' | 'pitch' | 'roi' | 'seo';
+type View = 'dashboard' | 'analytics' | 'intake' | 'reactivation' | 'status' | 'services' | 'pitch' | 'roi' | 'seo' | 'pricing';
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -264,6 +263,7 @@ function MainApp() {
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 mb-4 px-2">Growth & Strategy</div>
           <SidebarItem id="analytics" icon={BarChart3} label="Manager Reports" />
           <SidebarItem id="roi" icon={Calculator} label="ROI Calculator" />
+          <SidebarItem id="pricing" icon={DollarSign} label="Pricing Estimator" />
           <SidebarItem id="seo" icon={Globe} label="Digital Dominance" />
           <SidebarItem id="reactivation" icon={MessageSquare} label="Reactivation" />
           <SidebarItem id="services" icon={ShoppingBag} label="Service Menu" />
@@ -322,6 +322,9 @@ function MainApp() {
             )}
             {currentView === 'roi' && (
               <ROIView />
+            )}
+            {currentView === 'pricing' && (
+              <PricingView />
             )}
             {currentView === 'seo' && (
               <SEOView />
@@ -1421,6 +1424,128 @@ function StatusView() {
               alt="QR Code" 
               className="w-full h-full"
            />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PricingView() {
+  const [locations, setLocations] = useState(1);
+  
+  const pricingTiers = useMemo(() => {
+    return [
+      {
+        name: 'Single Unit (Pilot)',
+        price: '299',
+        setup: '1,000',
+        features: ['Full Digital Intake', 'ROI Dashboard', 'GBP PoC Integration'],
+        recommended: locations === 1
+      },
+      {
+        name: 'Growth Pack (3-10)',
+        price: '249',
+        setup: '2,500',
+        features: ['Multi-store Analytics', 'Priority Support', 'Custom Menu Setup'],
+        recommended: locations >= 3 && locations <= 10
+      },
+      {
+        name: 'Franchise Plus (10+)',
+        price: '199',
+        setup: '5,000',
+        features: ['Custom SSO', 'White-labeling', 'Quarterly Strategy Reviews'],
+        recommended: locations > 10
+      }
+    ];
+  }, [locations]);
+
+  const totalMonthly = useMemo(() => {
+    let rate = 299;
+    if (locations >= 3 && locations <= 10) rate = 249;
+    if (locations > 10) rate = 199;
+    return locations * rate;
+  }, [locations]);
+
+  return (
+    <div className="space-y-12 pb-20">
+      <header>
+        <h2 className="text-3xl font-bold tracking-tight">FranchiseGrow Pricing Estimator</h2>
+        <p className="text-gray-500 mt-1">Scale your ROI across multiple Jiffy Lube locations with tiered pricing.</p>
+      </header>
+
+      <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm">
+        <div className="max-w-2xl mx-auto text-center space-y-6">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">How many franchise locations?</div>
+          <div className="flex items-center justify-center gap-8">
+            <button 
+              onClick={() => setLocations(prev => Math.max(1, prev - 1))}
+              className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors font-bold text-xl"
+            >
+              -
+            </button>
+            <div className="text-6xl font-black tracking-tighter text-gray-900 w-32 text-center">
+              {locations}
+            </div>
+            <button 
+              onClick={() => setLocations(prev => prev + 1)}
+              className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors font-bold text-xl"
+            >
+              +
+            </button>
+          </div>
+          <p className="text-gray-400 text-xs">Adjust count to see the estimated subscription investment.</p>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {pricingTiers.map((tier, idx) => (
+          <div key={idx} className={cn(
+            "p-8 rounded-[2.5rem] border transition-all relative overflow-hidden",
+            tier.recommended 
+              ? "bg-black text-white border-black shadow-2xl scale-105 z-10" 
+              : "bg-white text-gray-900 border-gray-100 shadow-sm"
+          )}>
+            {tier.recommended && (
+              <div className="absolute top-0 right-0 px-4 py-2 bg-orange-500 text-white text-[10px] font-black uppercase tracking-widest rounded-bl-2xl">
+                Best Value
+              </div>
+            )}
+            <div className="space-y-6">
+              <div>
+                <h4 className="font-bold text-lg">{tier.name}</h4>
+                <div className="flex items-baseline gap-1 mt-2">
+                  <span className="text-4xl font-black tracking-tighter">${tier.price}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">/ mo / store</span>
+                </div>
+              </div>
+              
+              <div className="py-6 border-y border-current/10 space-y-3">
+                {tier.features.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <CheckCircle2 size={14} className={tier.recommended ? "text-orange-500" : "text-green-500"} />
+                    {f}
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">One-time Setup</div>
+                <div className="text-xl font-bold">${tier.setup}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-orange-500 text-white p-12 rounded-[3.5rem] shadow-xl shadow-orange-500/20 flex flex-col lg:flex-row justify-between items-center gap-8 relative overflow-hidden">
+        <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative z-10">
+          <h3 className="text-4xl font-black tracking-tighter mb-2 italic">Total Monthly Investment</h3>
+          <p className="text-orange-100 text-lg font-medium">PoC Valuation for {locations} {locations === 1 ? 'store' : 'stores'}.</p>
+        </div>
+        <div className="text-right relative z-10">
+          <div className="text-7xl font-black tracking-tighter italic">${totalMonthly.toLocaleString()}</div>
+          <div className="text-[10px] font-black uppercase tracking-widest opacity-80 mt-1 pb-1">Per Month (Estimated Franchise Rate)</div>
         </div>
       </div>
     </div>
