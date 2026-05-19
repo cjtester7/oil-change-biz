@@ -1,16 +1,11 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
  * 
- * Version: v3
- * Changes: Added a comprehensive ROI Calculator view to model potential revenue 
- * lift from digital intake and reactivation. Integrated navigation for the new ROI 
- * view and updated the Service Menu call-to-action.
+ * Version: v4
+ * Changes: Added 'Digital Dominance' (SEO Strategy) view to provide a roadmap 
+ * for ranking #1 in local search. Includes specific tactics for GBP, Nextdoor, 
+ * and keyword optimization.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -34,14 +29,18 @@ import {
   ArrowRight,
   Calculator,
   RefreshCw,
-  DollarSign
+  DollarSign,
+  Globe,
+  Star,
+  Camera,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils.ts';
 import { MOCK_CUSTOMERS, MOCK_VISITS, SERVICE_MENU } from './constants.ts';
 import { Customer, ServiceSuggestion, Visit } from './types.ts';
 
-type View = 'dashboard' | 'analytics' | 'intake' | 'reactivation' | 'status' | 'services' | 'pitch' | 'roi';
+type View = 'dashboard' | 'analytics' | 'intake' | 'reactivation' | 'status' | 'services' | 'pitch' | 'roi' | 'seo';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -99,6 +98,7 @@ export default function App() {
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 mb-4 px-2">Growth & Strategy</div>
           <SidebarItem id="analytics" icon={BarChart3} label="Manager Reports" />
           <SidebarItem id="roi" icon={Calculator} label="ROI Calculator" />
+          <SidebarItem id="seo" icon={Globe} label="Digital Dominance" />
           <SidebarItem id="reactivation" icon={MessageSquare} label="Reactivation" />
           <SidebarItem id="services" icon={ShoppingBag} label="Service Menu" />
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 mb-4 px-2">Manager Pitch</div>
@@ -146,6 +146,9 @@ export default function App() {
             )}
             {currentView === 'roi' && (
               <ROIView />
+            )}
+            {currentView === 'seo' && (
+              <SEOView />
             )}
           </motion.div>
         </AnimatePresence>
@@ -533,6 +536,138 @@ function SliderGroup({ label, value, onChange, min, max, step, icon: Icon }: { l
         className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-orange-500"
       />
     </div>
+  );
+}
+
+function SEOView() {
+  return (
+    <div className="max-w-5xl mx-auto space-y-16 py-10 pb-32">
+      <header className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Digital Dominance Roadmap</h2>
+          <p className="text-gray-500 mt-1">Strategy to rank #1 local search for "Fast Oil Change".</p>
+        </div>
+        <div className="bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-2">
+          <Globe size={14} />
+          SEO Strategy v1.0
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StrategyMetric label="Local Ranking" value="#4" target="#1" trend="up" />
+        <StrategyMetric label="GBP Views" value="4.2k" target="10k" trend="up" />
+        <StrategyMetric label="Nextdoor Leads" value="12" target="50" trend="up" />
+        <StrategyMetric label="Review Velocity" value="2/mo" target="10/mo" trend="down" />
+      </div>
+
+      <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm space-y-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          <div className="lg:col-span-1 space-y-6">
+            <h3 className="text-2xl font-bold flex items-center gap-3">
+              <div className="bg-blue-100 p-2 rounded-xl text-blue-600"><Star size={24} /></div>
+              Google Business Profile
+            </h3>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              Google prioritizes businesses that are "active". If we update this profile weekly, we jump ahead of static competitors.
+            </p>
+            <ul className="space-y-4">
+              <StepItem title="High-Res Bay Photos" desc="Upload 5 new photos of the shop floor every Sunday. Google loves 'recency'." />
+              <StepItem title="Response Time < 4hrs" desc="Staff should respond to every review. Interaction = Ranking Boost." />
+              <StepItem title="Google Q&A" desc="Seed common questions like 'Do you offer walk-ins?' with helpful staff answers." />
+            </ul>
+          </div>
+
+          <div className="lg:col-span-1 space-y-6">
+            <h3 className="text-2xl font-bold flex items-center gap-3">
+              <div className="bg-orange-100 p-2 rounded-xl text-orange-600"><Search size={24} /></div>
+              Keyword Dominance
+            </h3>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              We need to 'own' the words people actually type into their phones while sitting in their driveway.
+            </p>
+            <ul className="space-y-4">
+              <StepItem title="The '30 Min' Hook" desc="Use 'Fast 30-minute oil change' in the description. Speed is the primary search intent." />
+              <StepItem title="Service-Specific SEO" desc="Add 'Fuel Injection Service' to the official GBP services list (not just 'Oil Change')." />
+              <StepItem title="Geo-Local Tags" desc="Mention 'Serving [Neighborhood Name]' repeatedly in posts to win Near-Me searches." />
+            </ul>
+          </div>
+
+          <div className="lg:col-span-1 space-y-6">
+            <h3 className="text-2xl font-bold flex items-center gap-3">
+              <div className="bg-purple-100 p-2 rounded-xl text-purple-600"><Camera size={24} /></div>
+              Nextdoor Authority
+            </h3>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              Nextdoor is a trust engine. One recommendation here is worth 10 Google reviews in terms of direct referral.
+            </p>
+            <ul className="space-y-4">
+              <StepItem title="Direct Nextdoor Ads" desc="Run 'First Time Neighbor' discounts ($10 off) targeted at the 5-mile zip code." />
+              <StepItem title="Bay Status Updates" desc="Post real-time updates on Nextdoor: 'Quiet Sunday! 3 bays open for immediate service.'" />
+              <StepItem title="Expert Q&A" desc="Host a monthly 'Ask a Mechanic' thread to build neighborhood trust." />
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div className="bg-black text-white p-12 rounded-[3.5rem] relative overflow-hidden flex flex-col md:flex-row gap-10 items-center">
+        <div className="flex-1 space-y-6">
+          <h3 className="text-4xl font-black italic">"The Secret Weapon: Live Wait Stats"</h3>
+          <p className="text-gray-400 text-xl leading-relaxed">
+            By embedding our <strong>Live Bay Status</strong> (Wait Explorer) directly onto the Google Business Profile, we give customers the one thing competitors can't: <strong>Certainty</strong>.
+          </p>
+          <div className="flex gap-4">
+            <div className="bg-white/10 p-6 rounded-2xl border border-white/5">
+              <div className="text-orange-500 font-black text-2xl">+45%</div>
+              <div className="text-[10px] font-bold uppercase text-gray-400">Click-through Rate</div>
+            </div>
+            <div className="bg-white/10 p-6 rounded-2xl border border-white/5">
+              <div className="text-green-500 font-black text-2xl">-20%</div>
+              <div className="text-[10px] font-bold uppercase text-gray-400">Customer Churn</div>
+            </div>
+          </div>
+        </div>
+        <div className="w-full md:w-1/3 bg-white p-8 rounded-3xl text-black space-y-6 shadow-2xl">
+           <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+              <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold">J</div>
+              <div>
+                <div className="font-bold">Jiffy Lube #412</div>
+                <div className="flex text-orange-400"><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /></div>
+              </div>
+           </div>
+           <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex justify-between items-center">
+              <div className="text-xs font-bold text-green-700">LIVE STATUS: 0 MIN WAIT</div>
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+           </div>
+           <p className="text-[10px] text-gray-400">"This status block increases SEO authority by keeping users on our profile longer."</p>
+           <button className="w-full py-3 bg-black text-white rounded-xl text-xs font-bold uppercase tracking-widest">Connect to GBP</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StrategyMetric({ label, value, target, trend }: { label: string, value: string, target: string, trend: string }) {
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
+      <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{label}</div>
+      <div className="text-2xl font-bold flex items-center justify-center gap-2">
+        {value}
+        {trend === 'up' ? <TrendingUp size={16} className="text-green-500" /> : <div className="text-red-500 text-xs">▼</div>}
+      </div>
+      <div className="text-[10px] font-medium text-gray-500 mt-1">Target: {target}</div>
+    </div>
+  );
+}
+
+function StepItem({ title, desc }: { title: string, desc: string }) {
+  return (
+    <li className="space-y-1">
+      <div className="font-bold text-sm text-gray-900 flex items-center gap-2">
+        <ChevronRight size={14} className="text-orange-500" />
+        {title}
+      </div>
+      <div className="text-xs text-gray-500 leading-relaxed ml-5">{desc}</div>
+    </li>
   );
 }
 
