@@ -168,6 +168,24 @@ export default function App() {
 function MainApp() {
   const { user, login, logout, setPreview } = useAuth();
   const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
+  const [visits, setVisits] = useState<Visit[]>(MOCK_VISITS);
+
+  const allSuggestions = useMemo(() => {
+    return visits.flatMap(v => v.suggestions);
+  }, [visits]);
+
+  const missedRevenue = useMemo(() => {
+    return allSuggestions
+      .filter(s => s.status === 'declined')
+      .reduce((acc, curr) => acc + curr.price, 0);
+  }, [allSuggestions]);
+
+  const oilOnlyRate = useMemo(() => {
+    const total = visits.length;
+    const oilOnly = visits.filter(v => v.isOilOnly).length;
+    return total > 0 ? (oilOnly / total) * 100 : 0;
+  }, [visits]);
 
   if (!user) {
     return (
@@ -210,24 +228,6 @@ function MainApp() {
       </div>
     );
   }
-  const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
-  const [visits, setVisits] = useState<Visit[]>(MOCK_VISITS);
-
-  const allSuggestions = useMemo(() => {
-    return visits.flatMap(v => v.suggestions);
-  }, [visits]);
-
-  const missedRevenue = useMemo(() => {
-    return allSuggestions
-      .filter(s => s.status === 'declined')
-      .reduce((acc, curr) => acc + curr.price, 0);
-  }, [allSuggestions]);
-
-  const oilOnlyRate = useMemo(() => {
-    const total = visits.length;
-    const oilOnly = visits.filter(v => v.isOilOnly).length;
-    return total > 0 ? (oilOnly / total) * 100 : 0;
-  }, [visits]);
 
   const SidebarItem = ({ id, icon: Icon, label }: { id: View, icon: any, label: string }) => (
     <button
